@@ -1,17 +1,5 @@
 package main
 
-//constants
-var (
-	envKeepaliveTime     = "KEEPALIVE_TIME"
-	envKeepaliveInterval = "KEEPALIVE_INTERVAL"
-	envKeepaliveRetry    = "KEEPALIVE_RETRY"
-	envListenAddress     = "ADDRESS"
-	envListenNet         = "NETWORK"
-	envTLSCertificate    = "TLS_CERTIFICATE"
-	envTLSCertificateKey = "TLS_CERTIFICATE_KEY"
-	envTLSCAPool         = "TLS_CA_POOL"
-)
-
 func main() {
 	// CPU profiling by default
 	//defer profile.Start().Stop()

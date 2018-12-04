@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	coap "github.com/go-ocf/go-coap"
@@ -8,8 +9,21 @@ import (
 
 func TestOicSecSessionPostHandler(t *testing.T) {
 	tbl := []testEl{
-		{"Changed", input{coap.POST, `{}`, nil}, output{coap.Changed, ``, nil}},
+		{"BadRequest0", input{coap.POST, `{}`, nil}, output{coap.BadRequest, ``, nil}},
+		{"BadRequest1", input{coap.POST, `{"di": "abc", "accesstoken": 123}`, nil}, output{coap.BadRequest, ``, nil}},
+		{"BadRequest2", input{coap.POST, `{"di": "abc", "accesstoken": "123"}`, nil}, output{coap.BadRequest, ``, nil}},
+		{"BadRequest3", input{coap.POST, `{"di": "abc", "uid": "0"}`, nil}, output{coap.BadRequest, ``, nil}},
+		{"Changed1", input{coap.POST, `{"di": "abc", "uid":"0", "accesstoken":"123" }`, nil}, output{coap.Changed, `{"expiresin":1}`, nil}},
 	}
+
+	sauth, authAddrstr, authfin := testCreateAuthServer(t)
+	os.Setenv("AUTH_HOST", authAddrstr)
+	defer func() {
+		sauth.Shutdown()
+		if err := <-authfin; err != nil {
+			t.Fatalf("server unexcpected shutdown: %v", err)
+		}
+	}()
 
 	s, addrstr, fin, err := testCreateCoapGateway(t)
 	if err != nil {

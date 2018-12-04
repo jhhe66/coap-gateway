@@ -5,15 +5,35 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-ocf/go-coap"
+	"github.com/kelseyhightower/envconfig"
+	"github.com/valyala/fasthttp"
 )
+
+//config for application
+type config struct {
+	KeepaliveTime     time.Duration `envconfig:"KEEPALIVE_TIME" default:"3600s"`
+	KeepaliveInterval time.Duration `envconfig:"KEEPALIVE_INTERVAL" default:"5s"`
+	KeepaliveRetry    int           `envconfig:"KEEPALIVE_RETRY" default:"5"`
+	Addr              string        `envconfig:"ADDRESS" default:"0.0.0.0:5684"`
+	Net               string        `envconfig:"NETWORK" default:"tcp"`
+	AuthHost          string        `envconfig:"AUTH_HOST"  default:"127.0.0.1"`
+	AuthProtocol      authProto     `envconfig:"AUTH_PROTOCOL"  default:"http"`
+}
+
+//config for application
+type tlsConfig struct {
+	Certificate    string `envconfig:"TLS_CERTIFICATE" required:"true"`
+	CertificateKey string `envconfig:"TLS_CERTIFICATE_KEY" required:"true"`
+	CAPool         string `envconfig:"TLS_CA_POOL" required:"true"`
+}
 
 //Server a configuration of coapgateway
 type Server struct {
@@ -23,36 +43,20 @@ type Server struct {
 	keepaliveTime     time.Duration // the duration in seconds between two keepalive transmissions in idle condition. TCP keepalive period is required to be configurable and by default is set to 1 hour.
 	keepaliveInterval time.Duration // the duration in seconds between two successive keepalive retransmissions, if acknowledgement to the previous keepalive transmission is not received.
 	keepaliveRetry    int           // the number of retransmissions to be carried out before declaring that remote end is not available.
+	AuthHost          string        // IP/DOMAIN where gateway will create connections for authentification
+	AuthProtocol      string        // http or https
 
 	clientContainer *ClientContainer
+	httpClient      *fasthttp.Client
 }
 
 func setupTLS() (*tls.Config, error) {
-	var tlsCertificate *string
-	var tlsCertificateKey *string
-	var tlsCAPool *string
-	for _, e := range os.Environ() {
-		pair := strings.Split(e, "=")
-		key := pair[0]
-		switch key {
-		case envTLSCertificate:
-			tlsCertificate = &pair[1]
-		case envTLSCertificateKey:
-			tlsCertificateKey = &pair[1]
-		case envTLSCAPool:
-			tlsCAPool = &pair[1]
-		}
+	cfg := &tlsConfig{}
+	if err := envconfig.Process(os.Args[0], cfg); err != nil {
+		return nil, err
 	}
-	if tlsCertificate == nil {
-		return nil, ErrEnvNotSet(envTLSCertificate)
-	}
-	if tlsCertificateKey == nil {
-		return nil, ErrEnvNotSet(envTLSCertificateKey)
-	}
-	if tlsCAPool == nil {
-		return nil, ErrEnvNotSet(envTLSCAPool)
-	}
-	cert, err := tls.LoadX509KeyPair(*tlsCertificate, *tlsCertificateKey)
+
+	cert, err := tls.LoadX509KeyPair(cfg.Certificate, cfg.CertificateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +64,7 @@ func setupTLS() (*tls.Config, error) {
 	caRootPool := x509.NewCertPool()
 	caIntermediatesPool := x509.NewCertPool()
 
-	err = filepath.Walk(*tlsCAPool, func(path string, info os.FileInfo, e error) error {
+	err = filepath.Walk(cfg.CAPool, func(path string, info os.FileInfo, e error) error {
 		if e != nil {
 			return e
 		}
@@ -135,55 +139,38 @@ func setupTLS() (*tls.Config, error) {
 	}, nil
 }
 
+type authProto string
+
+func (a *authProto) Decode(value string) error {
+	switch value {
+	case "http", "https":
+		*a = authProto(value)
+		return nil
+	default:
+		return fmt.Errorf("Unsupported protocol type %v", value)
+	}
+}
+
 //NewServer setup coap gateway
 func NewServer() (*Server, error) {
-	s := Server{keepaliveTime: time.Hour, keepaliveInterval: time.Second * 5, keepaliveRetry: 5, Net: "tcp", Addr: "0.0.0.0:5684", clientContainer: &ClientContainer{sessions: make(map[string]*Session)}}
-
-	//load env variables
-	var keepaliveTime *int
-	var keepaliveInterval *int
-	var keepaliveRetry *int
-	var listenNetwork *string
-	var listenAddress *string
-	for _, e := range os.Environ() {
-		pair := strings.Split(e, "=")
-		key := pair[0]
-		switch key {
-		case envKeepaliveTime, envKeepaliveInterval, envKeepaliveRetry:
-			val, err := strconv.Atoi(pair[1])
-			if err != nil {
-				log.Errorf("Invalid value '%v' of env variable '%v: %v'", key, pair[1], err)
-			}
-			switch key {
-			case envKeepaliveTime:
-				keepaliveTime = &val
-			case envKeepaliveInterval:
-				keepaliveInterval = &val
-			case envKeepaliveRetry:
-				keepaliveRetry = &val
-			}
-		case envListenAddress:
-			listenAddress = &pair[1]
-		case envListenNet:
-			listenNetwork = &pair[1]
-		}
+	var cfg config
+	if err := envconfig.Process(os.Args[0], &cfg); err != nil {
+		return nil, err
 	}
 
-	if listenNetwork != nil {
-		s.Net = *listenNetwork
+	s := Server{
+		keepaliveTime:     cfg.KeepaliveTime,
+		keepaliveInterval: cfg.KeepaliveInterval,
+		keepaliveRetry:    cfg.KeepaliveRetry,
+		Net:               cfg.Net,
+		Addr:              cfg.Addr,
+		AuthHost:          cfg.AuthHost,
+		AuthProtocol:      string(cfg.AuthProtocol),
+
+		clientContainer: &ClientContainer{sessions: make(map[string]*Session)},
+		httpClient:      &fasthttp.Client{},
 	}
-	if listenAddress != nil {
-		s.Addr = *listenAddress
-	}
-	if keepaliveTime != nil {
-		s.keepaliveTime = time.Duration(*keepaliveTime)
-	}
-	if keepaliveInterval != nil {
-		s.keepaliveInterval = time.Duration(*keepaliveInterval)
-	}
-	if keepaliveRetry != nil {
-		s.keepaliveRetry = *keepaliveRetry
-	}
+
 	if strings.Contains(s.Net, "tls") {
 		var err error
 		s.TLSConfig, err = setupTLS()

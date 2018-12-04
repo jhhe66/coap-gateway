@@ -111,11 +111,11 @@ func TestSetupServer(t *testing.T) {
 	keepaliveInterval := 10002
 	address := "a"
 	network := "n"
-	os.Setenv(envKeepaliveTime, strconv.Itoa(keepaliveTime))
-	os.Setenv(envKeepaliveInterval, strconv.Itoa(keepaliveInterval))
-	os.Setenv(envKeepaliveRetry, strconv.Itoa(keepaliveRetry))
-	os.Setenv(envListenAddress, address)
-	os.Setenv(envListenNet, network)
+	os.Setenv("KEEPALIVE_TIME", strconv.Itoa(keepaliveTime)+"ns")
+	os.Setenv("KEEPALIVE_INTERVAL", strconv.Itoa(keepaliveInterval)+"ns")
+	os.Setenv("KEEPALIVE_RETRY", strconv.Itoa(keepaliveRetry))
+	os.Setenv("ADDRESS", address)
+	os.Setenv("NETWORK", network)
 
 	s, err := NewServer()
 	if err != nil {
@@ -156,10 +156,10 @@ func testSetupTLS(t *testing.T, dir string) {
 		t.Fatalf("%v", err)
 	}
 
-	os.Setenv(envListenNet, "tcp-tls")
-	os.Setenv(envTLSCertificate, crt)
-	os.Setenv(envTLSCertificateKey, crtKey)
-	os.Setenv(envTLSCAPool, dir)
+	os.Setenv("NETWORK", "tcp-tls")
+	os.Setenv("TLS_CERTIFICATE", crt)
+	os.Setenv("TLS_CERTIFICATE_KEY", crtKey)
+	os.Setenv("TLS_CA_POOL", dir)
 }
 
 func TestSetupTLSServer(t *testing.T) {
