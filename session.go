@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	coap "github.com/go-ocf/go-coap"
+	"github.com/go-ocf/resources/protobuf/auth"
+	resources "github.com/go-ocf/resources/protobuf/resources/commands"
 )
 
 type publishedResource struct {
@@ -22,6 +24,9 @@ type Session struct {
 	lockPublishedResources sync.Mutex
 	publishedResources     map[string]map[string]publishedResource
 	publishedResourcesID   int
+
+	authContext     resources.AuthorizationContext
+	authContextLock sync.Mutex
 }
 
 //NewSession create and initialize session
@@ -133,5 +138,26 @@ func (session *Session) close() {
 				log.Errorf("Cannot remove published resource ocf//%v/%v", deviceID, href)
 			}
 		}
+	}
+}
+
+func (session *Session) storeAuthorizationContext(authContext resources.AuthorizationContext) {
+	log.Infof("Authorization context stored for client %v, device %v, user %v", session.client.RemoteAddr(), authContext.GetDeviceId(), authContext.GetUserId())
+	session.authContextLock.Lock()
+	defer session.authContextLock.Unlock()
+	session.authContext = authContext
+}
+
+func (session *Session) loadAuthorizationContext() resources.AuthorizationContext {
+	session.authContextLock.Lock()
+	defer session.authContextLock.Unlock()
+	return session.authContext
+}
+
+func signInRequest2AuthorizationContext(signInRequest auth.SignInRequest) resources.AuthorizationContext {
+	return resources.AuthorizationContext{
+		AccessToken: signInRequest.AccessToken,
+		DeviceId:    signInRequest.DeviceId,
+		UserId:      signInRequest.UserId,
 	}
 }

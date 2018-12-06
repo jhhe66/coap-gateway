@@ -6,6 +6,7 @@ import (
 	coap "github.com/go-ocf/go-coap"
 )
 
+//ClientContainer client <-> server connections
 type ClientContainer struct {
 	sessions map[string]*Session
 	mutex    sync.Mutex

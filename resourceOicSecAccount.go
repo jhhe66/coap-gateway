@@ -28,6 +28,7 @@ func postSignUpURI(server *Server) string {
 	return server.AuthProtocol + "://" + server.AuthHost + "/signup"
 }
 
+// https://github.com/openconnectivityfoundation/security/blob/master/oic.r.account.raml#L27
 func oicSecAccountPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	var signUp auth.SignUpRequest
 
@@ -73,6 +74,8 @@ func oicSecAccountPostHandler(s coap.ResponseWriter, req *coap.Request, server *
 	sendResponse(s, req.Client, coap.Changed, out.Bytes())
 }
 
+// Sign-up
+// https://github.com/openconnectivityfoundation/security/blob/master/oic.r.account.raml
 func oicSecAccountHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	switch req.Msg.Code() {
 	case coap.POST:

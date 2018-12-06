@@ -17,6 +17,13 @@ func parsePostPayload(msg coap.Message) (wkRd map[string]interface{}, err error)
 	err = codec.NewDecoderBytes(msg.Payload(), new(codec.CborHandle)).Decode(&wkRd)
 	if err != nil {
 		err = fmt.Errorf("Cannot decode CBOR: %v", err)
+	}
+	return
+}
+
+func parseOicRdPostPayload(msg coap.Message) (wkRd map[string]interface{}, err error) {
+	wkRd, err = parsePostPayload(msg)
+	if err != nil {
 		return
 	}
 	if _, ok := wkRd["di"].(string); !ok {
@@ -69,7 +76,7 @@ func processLink(l interface{}, session *Session, deviceID string) (link map[int
 }
 
 func oicRdPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
-	wkRd, err := parsePostPayload(req.Msg)
+	wkRd, err := parseOicRdPostPayload(req.Msg)
 
 	if err != nil {
 		log.Errorf("%v", err)

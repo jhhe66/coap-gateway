@@ -31,6 +31,17 @@ func postSignInURI(server *Server) string {
 	return server.AuthProtocol + "://" + server.AuthHost + "/signin"
 }
 
+func storeSessionInformation(s coap.ResponseWriter, req *coap.Request, server *Server, signIn auth.SignInRequest) error {
+	session := server.clientContainer.find(req.Client.RemoteAddr().String())
+	if session == nil {
+		return errors.New("Cannot find session")
+	}
+
+	session.storeAuthorizationContext(signInRequest2AuthorizationContext(signIn))
+	return nil
+}
+
+// https://github.com/openconnectivityfoundation/security/blob/master/oic.r.session.raml#L27
 func oicSecSessionPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	var signIn auth.SignInRequest
 	var cborHandle codec.CborHandle
@@ -72,11 +83,18 @@ func oicSecSessionPostHandler(s coap.ResponseWriter, req *coap.Request, server *
 		return
 	}
 
-	//TODO store access token, user_id, device_id
+	err = storeSessionInformation(s, req, server, signIn)
+	if err != nil {
+		log.Errorf("Cannot store session information for client: %v", err)
+		sendResponse(s, req.Client, coap.BadRequest, nil)
+		return
+	}
 
 	sendResponse(s, req.Client, code, out.Bytes())
 }
 
+// Sign-in
+// https://github.com/openconnectivityfoundation/security/blob/master/oic.r.session.raml
 func oicSecSessionHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	switch req.Msg.Code() {
 	case coap.POST:
