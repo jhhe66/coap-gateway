@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/go-ocf/authorization/protobuf/auth"
 	coap "github.com/go-ocf/go-coap"
-	"github.com/go-ocf/resources/protobuf/auth"
 	resources "github.com/go-ocf/resources/protobuf/resources/commands"
 )
 
