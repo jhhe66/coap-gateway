@@ -88,7 +88,7 @@ func testCreateAuthServer(t *testing.T) (*fasthttp.Server, string, chan error) {
 	return &s, "127.0.0.1:" + strconv.Itoa(ln.Addr().(*net.TCPAddr).Port), fin
 }
 
-func TestOicSecAccountPostHandler(t *testing.T) {
+func TestSignUpPostHandler(t *testing.T) {
 	tbl := []testEl{
 		{"BadRequest0", input{coap.POST, `{}`, nil}, output{coap.BadRequest, ``, nil}},
 		{"BadRequest1", input{coap.POST, `{"di": "abc", "accesstoken": 123}`, nil}, output{coap.BadRequest, ``, nil}},
@@ -125,7 +125,7 @@ func TestOicSecAccountPostHandler(t *testing.T) {
 
 	for _, test := range tbl {
 		tf := func(t *testing.T) {
-			testPostHandler(t, oicSecAccount, test, co)
+			testPostHandler(t, signUp, test, co)
 		}
 		t.Run(test.name, tf)
 	}

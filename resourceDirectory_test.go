@@ -61,7 +61,7 @@ type testEl struct {
 	out  output
 }
 
-var tblOicRd = []testEl{
+var tblResourceDirectory = []testEl{
 	{"BadRequest", input{coap.POST, `{ "di":"a" }`, nil}, output{coap.BadRequest, ``, nil}},
 	{"BadRequest", input{coap.POST, `{ "di":"a", "links":"abc" }`, nil}, output{coap.BadRequest, ``, nil}},
 	{"BadRequest", input{coap.POST, `{ "di":"a", "links":[ "abc" ]}`, nil}, output{coap.BadRequest, ``, nil}},
@@ -126,7 +126,7 @@ func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn
 	}
 }
 
-func TestOicRdPostHandler(t *testing.T) {
+func TestResourceDirectoryPostHandler(t *testing.T) {
 
 	s, addrstr, fin, err := testCreateCoapGateway(t)
 	if err != nil {
@@ -147,16 +147,16 @@ func TestOicRdPostHandler(t *testing.T) {
 	}
 	defer co.Close()
 
-	for _, test := range tblOicRd {
+	for _, test := range tblResourceDirectory {
 		tf := func(t *testing.T) {
-			testPostHandler(t, oicRd, test, co)
+			testPostHandler(t, resourceDirectory, test, co)
 		}
 		t.Run(test.name, tf)
 	}
 }
 
-func TestOicRdDeleteHandler(t *testing.T) {
-	deletetblOicRd := []testEl{
+func TestResourceDirectoryDeleteHandler(t *testing.T) {
+	deletetblResourceDirectory := []testEl{
 		{"NotExist", input{coap.DELETE, ``, []string{"xxx"}}, output{coap.BadRequest, ``, nil}},
 		{"Exist1", input{coap.DELETE, ``, []string{"di=a"}}, output{coap.Deleted, ``, nil}},
 		{"Exist2", input{coap.DELETE, ``, []string{"di=b", "ins=5"}}, output{coap.BadRequest, ``, nil}},
@@ -183,14 +183,14 @@ func TestOicRdDeleteHandler(t *testing.T) {
 	defer co.Close()
 
 	//publish resources
-	for _, test := range tblOicRd {
-		testPostHandler(t, oicRd, test, co)
+	for _, test := range tblResourceDirectory {
+		testPostHandler(t, resourceDirectory, test, co)
 	}
 
 	//delete resources
-	for _, test := range deletetblOicRd {
+	for _, test := range deletetblResourceDirectory {
 		tf := func(t *testing.T) {
-			req, err := co.NewDeleteRequest(oicRd)
+			req, err := co.NewDeleteRequest(resourceDirectory)
 			if err != nil {
 				t.Fatalf("cannot create request: %v", err)
 			}

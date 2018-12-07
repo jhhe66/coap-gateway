@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	oicSecAccount = "/oic/sec/account"
+	signUp = "/oic/sec/account"
 )
 
 func validateSignUp(signUp auth.SignUpRequest) error {
@@ -29,7 +29,7 @@ func postSignUpURI(server *Server) string {
 }
 
 // https://github.com/openconnectivityfoundation/security/blob/master/oic.r.account.raml#L27
-func oicSecAccountPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
+func signUpPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	var signUp auth.SignUpRequest
 
 	var cborHandle codec.CborHandle
@@ -76,10 +76,10 @@ func oicSecAccountPostHandler(s coap.ResponseWriter, req *coap.Request, server *
 
 // Sign-up
 // https://github.com/openconnectivityfoundation/security/blob/master/oic.r.account.raml
-func oicSecAccountHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
+func signUpHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	switch req.Msg.Code() {
 	case coap.POST:
-		oicSecAccountPostHandler(s, req, server)
+		signUpPostHandler(s, req, server)
 	default:
 		log.Errorf("Forbidden request from %v", req.Client.RemoteAddr())
 		sendResponse(s, req.Client, coap.Forbidden, nil)

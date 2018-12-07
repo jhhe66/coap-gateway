@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	oicSecSession = "/oic/sec/session"
+	signIn = "/oic/sec/session"
 )
 
 func validateSignIn(signIn auth.SignInRequest) error {
@@ -42,7 +42,7 @@ func storeSessionInformation(s coap.ResponseWriter, req *coap.Request, server *S
 }
 
 // https://github.com/openconnectivityfoundation/security/blob/master/oic.r.session.raml#L27
-func oicSecSessionPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
+func signInPostHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	var signIn auth.SignInRequest
 	var cborHandle codec.CborHandle
 	err := codec.NewDecoder(bytes.NewBuffer(req.Msg.Payload()), &cborHandle).Decode(&signIn)
@@ -95,10 +95,10 @@ func oicSecSessionPostHandler(s coap.ResponseWriter, req *coap.Request, server *
 
 // Sign-in
 // https://github.com/openconnectivityfoundation/security/blob/master/oic.r.session.raml
-func oicSecSessionHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
+func signInHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	switch req.Msg.Code() {
 	case coap.POST:
-		oicSecSessionPostHandler(s, req, server)
+		signInPostHandler(s, req, server)
 	default:
 		log.Errorf("Forbidden request from %v", req.Client.RemoteAddr())
 		sendResponse(s, req.Client, coap.Forbidden, nil)

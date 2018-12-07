@@ -194,20 +194,25 @@ func validateCommandCode(s coap.ResponseWriter, req *coap.Request, server *Serve
 	}
 }
 
+func defaultHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
+	// handle message from tcp-client
+	sendResponse(s, req.Client, coap.NotFound, nil)
+}
+
 //NewCoapServer setup coap server
 func (server *Server) NewCoapServer() *coap.Server {
 	mux := coap.NewServeMux()
 	mux.DefaultHandle(coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
 		validateCommandCode(s, req, server, defaultHandler)
 	}))
-	mux.Handle(oicRd, coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
-		validateCommandCode(s, req, server, oicRdHandler)
+	mux.Handle(resourceDirectory, coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
+		validateCommandCode(s, req, server, resourceDirectoryHandler)
 	}))
-	mux.Handle(oicSecAccount, coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
-		validateCommandCode(s, req, server, oicSecAccountHandler)
+	mux.Handle(signUp, coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
+		validateCommandCode(s, req, server, signUpHandler)
 	}))
-	mux.Handle(oicSecSession, coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
-		validateCommandCode(s, req, server, oicSecSessionHandler)
+	mux.Handle(signIn, coap.HandlerFunc(func(s coap.ResponseWriter, req *coap.Request) {
+		validateCommandCode(s, req, server, signInHandler)
 	}))
 
 	return &coap.Server{

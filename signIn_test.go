@@ -7,7 +7,7 @@ import (
 	coap "github.com/go-ocf/go-coap"
 )
 
-func TestOicSecSessionPostHandler(t *testing.T) {
+func TestSignInPostHandler(t *testing.T) {
 	tbl := []testEl{
 		{"BadRequest0", input{coap.POST, `{}`, nil}, output{coap.BadRequest, ``, nil}},
 		{"BadRequest1", input{coap.POST, `{"di": "abc", "accesstoken": 123}`, nil}, output{coap.BadRequest, ``, nil}},
@@ -46,7 +46,7 @@ func TestOicSecSessionPostHandler(t *testing.T) {
 
 	for _, test := range tbl {
 		tf := func(t *testing.T) {
-			testPostHandler(t, oicSecSession, test, co)
+			testPostHandler(t, signIn, test, co)
 		}
 		t.Run(test.name, tf)
 	}
