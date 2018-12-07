@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/go-ocf/authorization/protobuf/auth"
 	coap "github.com/go-ocf/go-coap"
-	"github.com/go-ocf/resources/http"
-	"github.com/go-ocf/resources/protobuf/auth"
+	"github.com/go-ocf/kit/http"
 
 	"github.com/buaazp/fasthttprouter"
 	"github.com/valyala/fasthttp"
@@ -96,6 +96,7 @@ func TestSignUpPostHandler(t *testing.T) {
 	}
 
 	sauth, authAddrstr, authfin := testCreateAuthServer(t)
+	os.Setenv("NETWORK", "tcp")
 	os.Setenv("AUTH_HOST", authAddrstr)
 	defer func() {
 		sauth.Shutdown()

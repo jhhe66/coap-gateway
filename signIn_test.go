@@ -17,6 +17,7 @@ func TestSignInPostHandler(t *testing.T) {
 	}
 
 	sauth, authAddrstr, authfin := testCreateAuthServer(t)
+	os.Setenv("NETWORK", "tcp")
 	os.Setenv("AUTH_HOST", authAddrstr)
 	defer func() {
 		sauth.Shutdown()

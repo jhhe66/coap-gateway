@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	coap "github.com/go-ocf/go-coap"
@@ -128,6 +129,7 @@ func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn
 
 func TestResourceDirectoryPostHandler(t *testing.T) {
 
+	os.Setenv("NETWORK", "tcp")
 	s, addrstr, fin, err := testCreateCoapGateway(t)
 	if err != nil {
 		t.Fatalf("unable to run test server: %v", err)
@@ -163,6 +165,7 @@ func TestResourceDirectoryDeleteHandler(t *testing.T) {
 		{"Exist3", input{coap.DELETE, ``, []string{"di=b", "ins=2"}}, output{coap.Deleted, ``, nil}},
 	}
 
+	os.Setenv("NETWORK", "tcp")
 	s, addrstr, fin, err := testCreateCoapGateway(t)
 	if err != nil {
 		t.Fatalf("unable to run test server: %v", err)
