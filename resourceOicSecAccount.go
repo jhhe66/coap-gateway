@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/go-ocf/authorization/protobuf/auth"
 	coap "github.com/go-ocf/go-coap"
-	"github.com/go-ocf/resources/http"
-	"github.com/go-ocf/resources/protobuf/auth"
+	"github.com/go-ocf/kit/http"
 	"github.com/ugorji/go/codec"
 )
 
