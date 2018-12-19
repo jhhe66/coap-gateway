@@ -1,13 +1,13 @@
-FROM golang:latest as builder
+FROM golang:1.11-alpine as build
 WORKDIR /go/src/github.com/go-ocf/coap-gateway
-RUN wget --no-check-certificate https://raw.githubusercontent.com/golang/dep/master/install.sh
-RUN sh install.sh
+RUN apk add --no-cache curl git && \
+	curl -SL -o /usr/bin/dep https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64 && \
+    chmod +x /usr/bin/dep
 COPY ./ ./
-RUN dep ensure
-RUN dep status
+RUN dep ensure -v --vendor-only
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o coap-gateway-service ./cmd/coap-gateway-service
 
 FROM scratch
 WORKDIR /root/
-COPY --from=builder /go/src/github.com/go-ocf/coap-gateway/coap-gateway-service .
+COPY --from=build /go/src/github.com/go-ocf/coap-gateway/coap-gateway-service .
 CMD ["./coap-gateway-service"]
