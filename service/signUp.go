@@ -1,12 +1,14 @@
-package main
+package service
 
 import (
 	"bytes"
 	"errors"
 
 	"github.com/go-ocf/authorization/protobuf/auth"
+	"github.com/go-ocf/authorization/uri"
 	coap "github.com/go-ocf/go-coap"
 	"github.com/go-ocf/kit/http"
+	"github.com/go-ocf/kit/log"
 	"github.com/ugorji/go/codec"
 )
 
@@ -25,7 +27,7 @@ func validateSignUp(signUp auth.SignUpRequest) error {
 }
 
 func postSignUpURI(server *Server) string {
-	return server.AuthProtocol + "://" + server.AuthHost + "/signup"
+	return server.AuthProtocol + "://" + server.AuthHost + uri.SignUp
 }
 
 // https://github.com/openconnectivityfoundation/security/blob/master/oic.r.account.raml#L27

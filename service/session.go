@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-ocf/authorization/protobuf/auth"
 	coap "github.com/go-ocf/go-coap"
+	"github.com/go-ocf/kit/log"
 	resources "github.com/go-ocf/resources/protobuf/resources/commands"
 )
 

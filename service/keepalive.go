@@ -1,9 +1,10 @@
-package main
+package service
 
 import (
 	"time"
 
 	"github.com/go-ocf/go-coap"
+	"github.com/go-ocf/kit/log"
 )
 
 //Keepalive setup of keepalive

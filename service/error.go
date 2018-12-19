@@ -1,4 +1,4 @@
-package main
+package service
 
 // Error errors type of coap-gateway
 type Error string

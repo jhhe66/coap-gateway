@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-ocf/go-coap"
+	"github.com/go-ocf/kit/log"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/valyala/fasthttp"
 )
@@ -232,4 +233,12 @@ func (server *Server) NewCoapServer() *coap.Server {
 //ListenAndServe starts a coapgateway on the configured address in *Server.
 func (server *Server) ListenAndServe() error {
 	return server.NewCoapServer().ListenAndServe()
+}
+
+//Serve starts a coapgateway on the configured address in *Server and handle error
+func (server *Server) Serve() {
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatal(err)
+	}
 }

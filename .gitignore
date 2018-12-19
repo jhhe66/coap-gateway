@@ -11,5 +11,5 @@ debug
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
-coap-gateway
+coap-gateway-service
 coverage.txt

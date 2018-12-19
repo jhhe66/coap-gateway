@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"net"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-ocf/authorization/protobuf/auth"
+	"github.com/go-ocf/authorization/uri"
 	coap "github.com/go-ocf/go-coap"
 	"github.com/go-ocf/kit/http"
 
@@ -61,10 +62,10 @@ func testSignIn(t *testing.T, ctx *fasthttp.RequestCtx) {
 
 func testCreateAuthServer(t *testing.T) (*fasthttp.Server, string, chan error) {
 	router := fasthttprouter.New()
-	router.POST("/signup", func(ctx *fasthttp.RequestCtx) {
+	router.POST(uri.SignUp, func(ctx *fasthttp.RequestCtx) {
 		testSignUp(t, ctx)
 	})
-	router.POST("/signin", func(ctx *fasthttp.RequestCtx) {
+	router.POST(uri.SignIn, func(ctx *fasthttp.RequestCtx) {
 		testSignIn(t, ctx)
 	})
 

@@ -1,6 +1,8 @@
-package main
+package service
 
-func main() {
+import "github.com/go-ocf/kit/log"
+
+func New() *Server {
 	// CPU profiling by default
 	//defer profile.Start().Stop()
 	// Memory profiling
@@ -12,10 +14,5 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Infof("Server config %v", *s)
-
-	err = s.ListenAndServe()
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	return s
 }

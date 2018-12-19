@@ -1,4 +1,4 @@
-package main
+package service
 
 import coap "github.com/go-ocf/go-coap"
 

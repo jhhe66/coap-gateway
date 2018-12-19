@@ -1,12 +1,14 @@
-package main
+package service
 
 import (
 	"bytes"
 	"errors"
 
 	"github.com/go-ocf/authorization/protobuf/auth"
+	"github.com/go-ocf/authorization/uri"
 	coap "github.com/go-ocf/go-coap"
 	"github.com/go-ocf/kit/http"
+	"github.com/go-ocf/kit/log"
 	"github.com/ugorji/go/codec"
 )
 
@@ -28,7 +30,7 @@ func validateSignIn(signIn auth.SignInRequest) error {
 }
 
 func postSignInURI(server *Server) string {
-	return server.AuthProtocol + "://" + server.AuthHost + "/signin"
+	return server.AuthProtocol + "://" + server.AuthHost + uri.SignIn
 }
 
 func storeSessionInformation(s coap.ResponseWriter, req *coap.Request, server *Server, signIn auth.SignInRequest) error {

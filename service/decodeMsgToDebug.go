@@ -1,9 +1,10 @@
-package main
+package service
 
 import (
 	"bytes"
 
 	coap "github.com/go-ocf/go-coap"
+	"github.com/go-ocf/kit/log"
 	"github.com/ugorji/go/codec"
 )
 
