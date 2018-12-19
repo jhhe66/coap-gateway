@@ -5,7 +5,11 @@ RUN apk add --no-cache curl git && \
     chmod +x /usr/bin/dep
 COPY ./ ./
 RUN dep ensure -v --vendor-only
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o coap-gateway-service ./cmd/coap-gateway-service
+
+ENV CGO_ENABLED 0
+ENV GOOS linux
+
+RUN go build -a -installsuffix nocgo -o coap-gateway-service ./cmd/coap-gateway-service
 
 FROM scratch
 WORKDIR /root/
