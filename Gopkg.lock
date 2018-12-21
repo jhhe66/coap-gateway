@@ -41,14 +41,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ec19877c9a256148bff6db1ba2d9f57c46ae9eac577a695f4e33d17a83b768e6"
+  digest = "1:9dcc90197a808e321bd24886cb360614d7be701d5426f90745599a6bbc9d0ace"
   name = "github.com/go-ocf/resources"
   packages = [
     "protobuf/resources",
     "protobuf/resources/commands",
+    "uri",
   ]
   pruneopts = "UT"
-  revision = "24e895eb7244b6a70ca6de0aec4b81f9e0479999"
+  revision = "443438182a5cfbdcab9a8c70491a1867f2164a16"
 
 [[projects]]
   digest = "1:a9c85389dbd301c97a3499fe15a2b65b505b5f0cb0f1120dea59f1f3d6b11d96"
@@ -88,6 +89,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "e7e905edc00ea8827e58662220139109efea09db"
+  version = "v1.2.0"
+
+[[projects]]
+  digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
   version = "v1.2.0"
 
 [[projects]]
@@ -173,8 +182,11 @@
     "github.com/go-ocf/go-coap",
     "github.com/go-ocf/kit/http",
     "github.com/go-ocf/kit/log",
+    "github.com/go-ocf/resources/protobuf/resources",
     "github.com/go-ocf/resources/protobuf/resources/commands",
+    "github.com/go-ocf/resources/uri",
     "github.com/kelseyhightower/envconfig",
+    "github.com/satori/go.uuid",
     "github.com/ugorji/go/codec",
     "github.com/valyala/fasthttp",
   ]
