@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-ocf/go-coap"
+	coap "github.com/go-ocf/go-coap"
 	"github.com/go-ocf/kit/log"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/valyala/fasthttp"
@@ -26,7 +26,9 @@ type config struct {
 	Addr              string        `envconfig:"ADDRESS" default:"0.0.0.0:5684"`
 	Net               string        `envconfig:"NETWORK" default:"tcp"`
 	AuthHost          string        `envconfig:"AUTH_HOST"  default:"127.0.0.1"`
-	AuthProtocol      authProto     `envconfig:"AUTH_PROTOCOL"  default:"http"`
+	AuthProtocol      httpProto     `envconfig:"AUTH_PROTOCOL"  default:"http"`
+	ResourceHost      string        `envconfig:"RESOURCE_HOST"  default:"127.0.0.1"`
+	ResourceProtocol  httpProto     `envconfig:"RESOURCE_PROTOCOL"  default:"http"`
 }
 
 //config for application
@@ -46,6 +48,8 @@ type Server struct {
 	keepaliveRetry    int           // the number of retransmissions to be carried out before declaring that remote end is not available.
 	AuthHost          string        // IP/DOMAIN where gateway will create connections for authentification
 	AuthProtocol      string        // http or https
+	ResourceHost      string        // IP/DOMAIN where gateway will create connections for sending commands to resource aggregate
+	ResourceProtocol  string        // http or https
 
 	clientContainer *ClientContainer
 	httpClient      *fasthttp.Client
@@ -140,12 +144,12 @@ func setupTLS() (*tls.Config, error) {
 	}, nil
 }
 
-type authProto string
+type httpProto string
 
-func (a *authProto) Decode(value string) error {
+func (a *httpProto) Decode(value string) error {
 	switch value {
 	case "http", "https":
-		*a = authProto(value)
+		*a = httpProto(value)
 		return nil
 	default:
 		return fmt.Errorf("Unsupported protocol type %v", value)
@@ -167,6 +171,8 @@ func NewServer() (*Server, error) {
 		Addr:              cfg.Addr,
 		AuthHost:          cfg.AuthHost,
 		AuthProtocol:      string(cfg.AuthProtocol),
+		ResourceHost:      cfg.ResourceHost,
+		ResourceProtocol:  string(cfg.ResourceProtocol),
 
 		clientContainer: &ClientContainer{sessions: make(map[string]*Session)},
 		httpClient:      &fasthttp.Client{},

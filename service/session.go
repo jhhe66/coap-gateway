@@ -8,11 +8,12 @@ import (
 	"github.com/go-ocf/authorization/protobuf/auth"
 	coap "github.com/go-ocf/go-coap"
 	"github.com/go-ocf/kit/log"
-	resources "github.com/go-ocf/resources/protobuf/resources/commands"
+	"github.com/go-ocf/resources/protobuf/resources"
+	resourcesCommands "github.com/go-ocf/resources/protobuf/resources/commands"
 )
 
-type publishedResource struct {
-	id          int
+type observedResource struct {
+	res         resources.Resource
 	observation *coap.Observation
 }
 
@@ -22,44 +23,43 @@ type Session struct {
 	client    *coap.ClientCommander
 	keepalive *Keepalive
 
-	lockPublishedResources sync.Mutex
-	publishedResources     map[string]map[string]publishedResource
-	publishedResourcesID   int
-
-	authContext     resources.AuthorizationContext
-	authContextLock sync.Mutex
+	lockobservedResources sync.Mutex
+	observedResources     map[string]map[string]observedResource
+	authContext           resourcesCommands.AuthorizationContext
+	authContextLock       sync.Mutex
 }
 
 //NewSession create and initialize session
 func newSession(server *Server, client *coap.ClientCommander) *Session {
 	log.Infof("Close session %v", client.RemoteAddr())
 	return &Session{
-		server:             server,
-		client:             client,
-		keepalive:          NewKeepalive(server, client),
-		publishedResources: make(map[string]map[string]publishedResource),
+		server:            server,
+		client:            client,
+		keepalive:         NewKeepalive(server, client),
+		observedResources: make(map[string]map[string]observedResource),
 	}
 }
 
-func (session *Session) publishResource(deviceID, href string, observable bool) (int, error) {
-	session.lockPublishedResources.Lock()
-	defer session.lockPublishedResources.Unlock()
-	if _, ok := session.publishedResources[deviceID]; !ok {
-		session.publishedResources[deviceID] = make(map[string]publishedResource)
+func (session *Session) observeResource(res resources.Resource) error {
+	session.lockobservedResources.Lock()
+	defer session.lockobservedResources.Unlock()
+	if _, ok := session.observedResources[res.DeviceId]; !ok {
+		session.observedResources[res.DeviceId] = make(map[string]observedResource)
 	}
-	if _, ok := session.publishedResources[deviceID][href]; ok {
-		return -1, fmt.Errorf("Resource ocf://%v/%v are already published", deviceID, href)
+	if _, ok := session.observedResources[res.DeviceId][res.Href]; ok {
+		return fmt.Errorf("Resource ocf://%v/%v are already published", res.DeviceId, res.Href)
 	}
-	return session.addPublishedResourceLocked(deviceID, href, observable), nil
+	return session.addObservedResourceLocked(res)
 }
 
-func (session *Session) addPublishedResourceLocked(deviceID, href string, observable bool) int {
+func (session *Session) addObservedResourceLocked(res resources.Resource) error {
 	var observation *coap.Observation
-	log.Infof("add published resource ocf://%v/%v, observable: %v", deviceID, href, observable)
-	if observable {
-		obs, err := session.client.Observe(href, onObserveNotification)
+	obs := isObservable(res)
+	log.Infof("add published resource ocf://%v/%v, observable: %v", res.DeviceId, res.Href, obs)
+	if obs {
+		obs, err := session.client.Observe(res.Href, onObserveNotification)
 		if err != nil {
-			log.Errorf("Cannot observe ocf://%v/%v", deviceID, href)
+			log.Errorf("Cannot observe ocf://%v/%v", res.DeviceId, res.Href)
 		} else {
 			observation = obs
 		}
@@ -71,17 +71,15 @@ func (session *Session) addPublishedResourceLocked(deviceID, href string, observ
 				return
 			}
 			onGetResponse(&coap.Request{Client: client, Msg: resp})
-		}(session.client, deviceID, href)
+		}(session.client, res.DeviceId, res.Href)
 	}
-	publishedResourcesID := session.publishedResourcesID
-	session.publishedResourcesID++
-	session.publishedResources[deviceID][href] = publishedResource{id: publishedResourcesID, observation: observation}
-	return publishedResourcesID
+	session.observedResources[res.DeviceId][res.Href] = observedResource{res: res, observation: observation}
+	return nil
 }
 
-func (session *Session) removePublishedResourceLocked(deviceID, href string) error {
+func (session *Session) removeObservedResourceLocked(deviceID, href string) error {
 	log.Infof("remove published resource ocf://%v/%v", deviceID, href)
-	obs := session.publishedResources[deviceID][href].observation
+	obs := session.observedResources[deviceID][href].observation
 	if obs != nil {
 		log.Infof("cancel observation of ocf://%v/%v", deviceID, href)
 		err := obs.Cancel()
@@ -90,73 +88,73 @@ func (session *Session) removePublishedResourceLocked(deviceID, href string) err
 		}
 	}
 
-	delete(session.publishedResources[deviceID], href)
-	if len(session.publishedResources[deviceID]) == 0 {
-		delete(session.publishedResources, deviceID)
+	delete(session.observedResources[deviceID], href)
+	if len(session.observedResources[deviceID]) == 0 {
+		delete(session.observedResources, deviceID)
 	}
 	return nil
 }
 
-func (session *Session) unpublishResource(deviceID string, publishedResourcesIDs map[int]bool) error {
-	session.lockPublishedResources.Lock()
-	defer session.lockPublishedResources.Unlock()
+func (session *Session) unobserveResource(deviceID string, observedResourcesIDs map[int64]bool) error {
+	session.lockobservedResources.Lock()
+	defer session.lockobservedResources.Unlock()
 
-	if hrefs, ok := session.publishedResources[deviceID]; ok {
-		if len(publishedResourcesIDs) == 0 {
+	if hrefs, ok := session.observedResources[deviceID]; ok {
+		if len(observedResourcesIDs) == 0 {
 			for href := range hrefs {
-				session.removePublishedResourceLocked(deviceID, href)
+				session.removeObservedResourceLocked(deviceID, href)
 			}
 			return nil
 		}
-		for href, pubRsx := range hrefs {
-			if _, ok := publishedResourcesIDs[pubRsx.id]; ok {
-				session.removePublishedResourceLocked(deviceID, href)
-				delete(publishedResourcesIDs, pubRsx.id)
+		for href, obsRes := range hrefs {
+			if _, ok := observedResourcesIDs[obsRes.res.InstanceId]; ok {
+				session.removeObservedResourceLocked(deviceID, href)
+				delete(observedResourcesIDs, obsRes.res.InstanceId)
 			}
 		}
-		if len(publishedResourcesIDs) == 0 {
+		if len(observedResourcesIDs) == 0 {
 			return nil
 		}
-		out := make([]int, 0, len(publishedResourcesIDs))
-		for _, val := range reflect.ValueOf(publishedResourcesIDs).MapKeys() {
-			out = append(out, val.Interface().(int))
+		out := make([]int64, 0, len(observedResourcesIDs))
+		for _, val := range reflect.ValueOf(observedResourcesIDs).MapKeys() {
+			out = append(out, val.Interface().(int64))
 		}
-		return fmt.Errorf("Cannot unpublish resources with %v: resource not found", out)
+		return fmt.Errorf("Cannot unobserve resources with %v: resource not found", out)
 	}
-	return fmt.Errorf("Cannot unpublish resource for %v: device not found", deviceID)
+	return fmt.Errorf("Cannot unobserve resource for %v: device not found", deviceID)
 
 }
 
 func (session *Session) close() {
 	log.Infof("Close session %v", session.client.RemoteAddr())
 	session.keepalive.Done()
-	session.lockPublishedResources.Lock()
-	defer session.lockPublishedResources.Unlock()
-	for deviceID, hrefs := range session.publishedResources {
+	session.lockobservedResources.Lock()
+	defer session.lockobservedResources.Unlock()
+	for deviceID, hrefs := range session.observedResources {
 		for href := range hrefs {
-			err := session.removePublishedResourceLocked(deviceID, href)
+			err := session.removeObservedResourceLocked(deviceID, href)
 			if err != nil {
-				log.Errorf("Cannot remove published resource ocf//%v/%v", deviceID, href)
+				log.Errorf("Cannot remove observed resource ocf//%v/%v", deviceID, href)
 			}
 		}
 	}
 }
 
-func (session *Session) storeAuthorizationContext(authContext resources.AuthorizationContext) {
+func (session *Session) storeAuthorizationContext(authContext resourcesCommands.AuthorizationContext) {
 	log.Infof("Authorization context stored for client %v, device %v, user %v", session.client.RemoteAddr(), authContext.GetDeviceId(), authContext.GetUserId())
 	session.authContextLock.Lock()
 	defer session.authContextLock.Unlock()
 	session.authContext = authContext
 }
 
-func (session *Session) loadAuthorizationContext() resources.AuthorizationContext {
+func (session *Session) loadAuthorizationContext() resourcesCommands.AuthorizationContext {
 	session.authContextLock.Lock()
 	defer session.authContextLock.Unlock()
 	return session.authContext
 }
 
-func signInRequest2AuthorizationContext(signInRequest auth.SignInRequest) resources.AuthorizationContext {
-	return resources.AuthorizationContext{
+func signInRequest2AuthorizationContext(signInRequest auth.SignInRequest) resourcesCommands.AuthorizationContext {
+	return resourcesCommands.AuthorizationContext{
 		AccessToken: signInRequest.AccessToken,
 		DeviceId:    signInRequest.DeviceId,
 		UserId:      signInRequest.UserId,

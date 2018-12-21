@@ -2,11 +2,20 @@ package service
 
 import (
 	"bytes"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 
 	coap "github.com/go-ocf/go-coap"
+	httputil "github.com/go-ocf/kit/http"
+	"github.com/go-ocf/resources/protobuf/resources"
+	"github.com/go-ocf/resources/protobuf/resources/commands"
+	"github.com/go-ocf/resources/uri"
 	"github.com/ugorji/go/codec"
+	"github.com/valyala/fasthttp"
 )
 
 type input struct {
@@ -63,14 +72,18 @@ type testEl struct {
 }
 
 var tblResourceDirectory = []testEl{
-	{"BadRequest", input{coap.POST, `{ "di":"a" }`, nil}, output{coap.BadRequest, ``, nil}},
-	{"BadRequest", input{coap.POST, `{ "di":"a", "links":"abc" }`, nil}, output{coap.BadRequest, ``, nil}},
-	{"BadRequest", input{coap.POST, `{ "di":"a", "links":[ "abc" ]}`, nil}, output{coap.BadRequest, ``, nil}},
-	{"BadRequest", input{coap.POST, `{ "di":"a", "links":[ {} ]}`, nil}, output{coap.BadRequest, ``, nil}},
-	{"Changed", input{coap.POST, `{ "di":"a", "links":[ { "href":"/a" } ]}`, nil}, output{coap.Changed, `{ "di":"a", "links":[ { "href":"/a", "ins":0 } ]}`, nil}},
-	{"Changed", input{coap.POST, `{ "di":"a", "links":[ { "href":"/b" } ]}`, nil}, output{coap.Changed, `{ "di":"a", "links":[ { "href":"/b", "ins":1 } ]}`, nil}},
-	{"BadRequest", input{coap.POST, `{ "di":"a", "links":[ { "href":"" } ]}`, nil}, output{coap.BadRequest, ``, nil}},
-	{"Changed", input{coap.POST, `{ "di":"b", "links":[ { "href":"/c", "p": {"bm":2} } ]}`, nil}, output{coap.Changed, `{ "di":"b", "links":[ { "href":"/c", "ins":2, "p": {"bm":2} } ]}`, nil}},
+	{"BadRequest0", input{coap.POST, `{ "di":"a" }`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest1", input{coap.POST, `{ "di":"a", "links":"abc" }`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest2", input{coap.POST, `{ "di":"a", "links":[ "abc" ]}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest3", input{coap.POST, `{ "di":"a", "links":[ {} ]}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest4", input{coap.POST, `{ "di":"a", "links":[ { "href":"" } ]}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"Changed0", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/a" } ], "ttl":12345}`, nil},
+		output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/a","id":"b2c5f775-9a6f-5d5b-a82a-eaa1d23f0629","if":null,"ins":0,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},
+	{"Changed1", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/b" } ], "ttl":12345}`, nil}, output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/b","id":"91410e86-9161-5317-9576-be5c7660f085","if":null,"ins":1,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},
+	{"Changed2", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/b" }, { "di":"a", "href":"/c" }], "ttl":12345}`, nil},
+		output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/b","id":"91410e86-9161-5317-9576-be5c7660f085","if":null,"ins":2,"p":null,"rt":null,"type":null},{"di":"a","href":"/c","id":"7d8daabb-7a03-5a06-8ef9-b2e8d41bd427","if":null,"ins":3,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},
+	{"Changed3", input{coap.POST, `{ "di":"b", "links":[ { "di":"b", "href":"/c", "p": {"bm":2} } ], "ttl":12345}`, nil},
+		output{coap.Changed, `{"di":"b","links":[{"di":"b","href":"/c","id":"a2ccb45a-a892-515c-b153-79d1b903cc31","if":null,"ins":4,"p":{"bm":2},"rt":null,"type":null}],"ttl":12345}`, nil}},
 }
 
 func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn) {
@@ -127,9 +140,37 @@ func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn
 	}
 }
 
-func TestResourceDirectoryPostHandler(t *testing.T) {
+var counter = int64(0)
 
+func handleResPublishMocked(t *testing.T) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cmdResp := commands.PublishResourceResponse{InstanceId: counter, AuditContext: &resources.AuditContext{UserId: "UserID1", DeviceId: "DeviceID1", CorrelationId: "CorrelationID1"}}
+
+		resp := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseResponse(resp)
+		err := httputil.WriteResponse(&cmdResp, resp)
+		if err != nil {
+			t.Error("unable to marshal response:", err)
+			return
+		}
+		counter++
+		t.Logf("counter %d", counter)
+
+		w.Header().Set("Content-Type", string(resp.Header.ContentType()))
+		w.WriteHeader(200)
+		w.Write(resp.Body())
+	}
+}
+
+func TestResourceDirectoryPostHandler(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc(uri.PublishResource, handleResPublishMocked(t))
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resourceServer := "127.0.0.1:" + strconv.Itoa(server.Listener.Addr().(*net.TCPAddr).Port)
 	os.Setenv("NETWORK", "tcp")
+	os.Setenv("RESOURCE_HOST", resourceServer)
 	s, addrstr, fin, err := testCreateCoapGateway(t)
 	if err != nil {
 		t.Fatalf("unable to run test server: %v", err)
@@ -158,14 +199,23 @@ func TestResourceDirectoryPostHandler(t *testing.T) {
 }
 
 func TestResourceDirectoryDeleteHandler(t *testing.T) {
+	//set counter 0, when other test run with this that it can be modified
+	counter = 0
 	deletetblResourceDirectory := []testEl{
 		{"NotExist", input{coap.DELETE, ``, []string{"xxx"}}, output{coap.BadRequest, ``, nil}},
 		{"Exist1", input{coap.DELETE, ``, []string{"di=a"}}, output{coap.Deleted, ``, nil}},
 		{"Exist2", input{coap.DELETE, ``, []string{"di=b", "ins=5"}}, output{coap.BadRequest, ``, nil}},
-		{"Exist3", input{coap.DELETE, ``, []string{"di=b", "ins=2"}}, output{coap.Deleted, ``, nil}},
+		{"Exist3", input{coap.DELETE, ``, []string{"di=b", "ins=4"}}, output{coap.Deleted, ``, nil}},
 	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc(uri.PublishResource, handleResPublishMocked(t))
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resourceServer := "127.0.0.1:" + strconv.Itoa(server.Listener.Addr().(*net.TCPAddr).Port)
 	os.Setenv("NETWORK", "tcp")
+	os.Setenv("RESOURCE_HOST", resourceServer)
 	s, addrstr, fin, err := testCreateCoapGateway(t)
 	if err != nil {
 		t.Fatalf("unable to run test server: %v", err)
@@ -185,9 +235,12 @@ func TestResourceDirectoryDeleteHandler(t *testing.T) {
 	}
 	defer co.Close()
 
-	//publish resources
+	// Publish resources first!
 	for _, test := range tblResourceDirectory {
-		testPostHandler(t, resourceDirectory, test, co)
+		tf := func(t *testing.T) {
+			testPostHandler(t, resourceDirectory, test, co)
+		}
+		t.Run(test.name, tf)
 	}
 
 	//delete resources
