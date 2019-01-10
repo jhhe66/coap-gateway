@@ -247,12 +247,40 @@ func resourceDirectoryUnpublishHandler(s coap.ResponseWriter, req *coap.Request,
 	sendResponse(s, req.Client, coap.Deleted, nil)
 }
 
+type resourceDirectorySelector struct {
+	SelectionCriteria int `json:"sel"`
+}
+
+func resourceDirectoryGetSelector(s coap.ResponseWriter, req *coap.Request, server *Server) {
+	session := server.clientContainer.find(req.Client.RemoteAddr().String())
+	if session == nil {
+		log.Errorf("Cannot find session for client %v", req.Client.RemoteAddr())
+		sendResponse(s, req.Client, coap.InternalServerError, nil)
+		return
+	}
+
+	var rds resourceDirectorySelector //we want to use sel:0 to prefer cloud RD
+
+	var cborHandle codec.CborHandle
+	out := bytes.NewBuffer(make([]byte, 0, 1024))
+	err := codec.NewEncoder(out, &cborHandle).Encode(rds)
+	if err != nil {
+		log.Errorf("cannot marshal response for client %v: %v", req.Client.RemoteAddr(), err)
+		sendResponse(s, req.Client, coap.InternalServerError, nil)
+		return
+	}
+
+	sendResponse(s, req.Client, coap.Content, out.Bytes())
+}
+
 func resourceDirectoryHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	switch req.Msg.Code() {
 	case coap.POST:
 		resourceDirectoryPublishHandler(s, req, server)
 	case coap.DELETE:
 		resourceDirectoryUnpublishHandler(s, req, server)
+	case coap.GET:
+		resourceDirectoryGetSelector(s, req, server)
 	default:
 		log.Errorf("Forbidden request from %v", req.Client.RemoteAddr())
 		sendResponse(s, req.Client, coap.Forbidden, nil)

@@ -88,27 +88,7 @@ var tblResourceDirectory = []testEl{
 		output{coap.Changed, `{"di":"b","links":[{"di":"b","href":"/c","id":"a2ccb45a-a892-515c-b153-79d1b903cc31","if":null,"ins":4,"p":{"bm":2},"rt":null,"type":null}],"ttl":12345}`, nil}},
 }
 
-func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn) {
-	inputCbor, err := json2cbor(test.in.payload)
-	if err != nil {
-		t.Fatalf("Cannot convert json to cbor: %v", err)
-	}
-
-	req, err := co.NewPostRequest(path, coap.AppCBOR, bytes.NewReader(inputCbor))
-	if err != nil {
-		t.Fatalf("cannot create request: %v", err)
-	}
-	for _, q := range test.in.queries {
-		req.AddOption(coap.URIQuery, q)
-	}
-
-	resp, err := co.Exchange(req)
-	if err != nil {
-		if err != nil {
-			t.Fatalf("Cannot send/retrieve msg: %v", err)
-		}
-	}
-
+func testValidateResp(t *testing.T, test testEl, resp coap.Message) {
 	if resp.Code() != test.out.code {
 		t.Fatalf("Ouput code %v is invalid, expected %v", resp.Code(), test.out.code)
 	} else {
@@ -140,6 +120,27 @@ func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn
 			}
 		}
 	}
+}
+
+func testPostHandler(t *testing.T, path string, test testEl, co *coap.ClientConn) {
+	inputCbor, err := json2cbor(test.in.payload)
+	if err != nil {
+		t.Fatalf("Cannot convert json to cbor: %v", err)
+	}
+
+	req, err := co.NewPostRequest(path, coap.AppCBOR, bytes.NewReader(inputCbor))
+	if err != nil {
+		t.Fatalf("cannot create request: %v", err)
+	}
+	for _, q := range test.in.queries {
+		req.AddOption(coap.URIQuery, q)
+	}
+
+	resp, err := co.Exchange(req)
+	if err != nil {
+		t.Fatalf("Cannot send/retrieve msg: %v", err)
+	}
+	testValidateResp(t, test, resp)
 }
 
 var counter = int64(0)
@@ -278,26 +279,54 @@ func TestResourceDirectoryDeleteHandler(t *testing.T) {
 
 			resp, err := co.Exchange(req)
 			if err != nil {
-				if err != nil {
-					t.Fatalf("Cannot send/retrieve msg: %v", err)
-				}
+				t.Fatalf("Cannot send/retrieve msg: %v", err)
+			}
+			testValidateResp(t, test, resp)
+		}
+		t.Run(test.name, tf)
+	}
+}
+
+func TestResourceDirectoryGetSelector(t *testing.T) {
+	//set counter 0, when other test run with this that it can be modified
+	counter = 0
+	tbl := []testEl{
+		{"GetSelector", input{coap.GET, ``, []string{}}, output{coap.Content, `{"sel": 0}`, nil}},
+	}
+	s, addrstr, fin, err := testCreateCoapGateway(t)
+	if err != nil {
+		t.Fatalf("unable to run test server: %v", err)
+	}
+	defer func() {
+		s.Shutdown()
+		err := <-fin
+		if err != nil {
+			t.Fatalf("server unexcpected shutdown: %v", err)
+		}
+	}()
+
+	client := &coap.Client{Net: "tcp"}
+	co, err := client.Dial(addrstr)
+	if err != nil {
+		t.Fatalf("unable to dialing: %v", err)
+	}
+	defer co.Close()
+
+	for _, test := range tbl {
+		tf := func(t *testing.T) {
+			req, err := co.NewGetRequest(resourceDirectory)
+			if err != nil {
+				t.Fatalf("cannot create request: %v", err)
+			}
+			for _, q := range test.in.queries {
+				req.AddOption(coap.URIQuery, q)
 			}
 
-			if resp.Code() != test.out.code {
-				t.Fatalf("Ouput code %v is invalid, expected %v", resp.Code(), test.out.code)
-			} else if len(resp.Payload()) > 0 || len(test.out.payload) > 0 {
-				json, err := cbor2json(resp.Payload())
-				if err != nil {
-					t.Fatalf("Cannot convert cbor to json: %v", err)
-				}
-				expJSON, err := cannonalizeJSON(test.out.payload)
-				if err != nil {
-					t.Fatalf("Cannot convert cbor to json: %v", err)
-				}
-				if json != expJSON {
-					t.Fatalf("Ouput payload %v is invalid, expected %v", json, expJSON)
-				}
+			resp, err := co.Exchange(req)
+			if err != nil {
+				t.Fatalf("Cannot send/retrieve msg: %v", err)
 			}
+			testValidateResp(t, test, resp)
 		}
 		t.Run(test.name, tf)
 	}
