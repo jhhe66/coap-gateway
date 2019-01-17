@@ -4,13 +4,13 @@
 
 # coap-gateway
 
-#Overview
+# Overview
 
 OCF Servers / Clients communicate over TCP / UDP using the CoAP application protocol. Communication within the OCF Native Cloud shouldn't be restricted to the CoAP protocol, implementation should allow the use of whatever protocol might be introduced in the future. That's why the gateway is the access point for CoAP over TCP, and further communication is OCF Native Cloud specific.
 
 TCP connection to the OCF Native Cloud is by its nature stateful. The OCF CoAP Gateway is therefore also stateful, keeping open connections to the OCF Servers / Clients.  The goal of the Gateway is to translate between the OCF Servers / Clients (CoAP) and the protocol of the OCF Native Cloud and communicate in an asynchronous way.
 
-#Validation
+# Validation
 - OCF CoAP Gateway can accept requests from the OCF Client / Server only after a successful sign-in 
 - OCF CoAP Gateway can forward requests to the OCF Client / Server only after successful sign-in 
 - If sign-in was not issued within the configured amount of time or sign-in request failed, OCF Native Cloud will forcibly close the TCP connection
