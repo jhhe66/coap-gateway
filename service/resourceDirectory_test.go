@@ -220,7 +220,11 @@ func TestResourceDirectoryDeleteHandler(t *testing.T) {
 	//set counter 0, when other test run with this that it can be modified
 	counter = 0
 	deletetblResourceDirectory := []testEl{
-		{"NotExist", input{coap.DELETE, ``, []string{"di=b", "ins=4", "ins=5"}}, output{coap.Deleted, ``, nil}},
+		{"NotExist1", input{coap.DELETE, ``, []string{"di=c", "ins=5"}}, output{coap.BadRequest, ``, nil}},   // Non-existent device ID.
+		{"NotExist2", input{coap.DELETE, ``, []string{"ins=4"}}, output{coap.BadRequest, ``, nil}},           // Device ID empty.
+		{"NotExist3", input{coap.DELETE, ``, []string{"di=a", "ins=999"}}, output{coap.BadRequest, ``, nil}}, // Instance ID non-existent.
+		{"Exist1", input{coap.DELETE, ``, []string{"di=a"}}, output{coap.Deleted, ``, nil}},                  // If instanceIDs empty, all instances for a given device ID should be unpublished.
+		{"Exist2", input{coap.DELETE, ``, []string{"di=b", "ins=4", "ins=5"}}, output{coap.Deleted, ``, nil}},
 	}
 
 	mux := http.NewServeMux()

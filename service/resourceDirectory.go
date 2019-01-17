@@ -201,8 +201,14 @@ func resourceDirectoryUnpublishHandler(s coap.ResponseWriter, req *coap.Request,
 	}
 
 	rscs := make([]resources.Resource, 0, 32)
-	rscs = session.getObservedResources(deviceID, inss, rscs)
 	rscsUnpublished := make(map[string]bool, 32)
+
+	rscs = session.getObservedResources(deviceID, inss, rscs)
+	if len(rscs) == 0 {
+		log.Errorf("no matching resources found for the DELETE request - with device ID and instance IDs %v, ", queries)
+		sendResponse(s, req.Client, coap.BadRequest, nil)
+		return
+	}
 
 	for _, resource := range rscs {
 		if resource.DeviceId == "" {
