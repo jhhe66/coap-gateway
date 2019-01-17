@@ -162,6 +162,24 @@ func handleResPublishMocked(t *testing.T) func(http.ResponseWriter, *http.Reques
 	}
 }
 
+func handleResUnpublishMocked(t *testing.T) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cmdResp := commands.UnpublishResourceResponse{AuditContext: &resources.AuditContext{UserId: "UserID1", DeviceId: "DeviceID1", CorrelationId: "CorrelationID1"}}
+
+		resp := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseResponse(resp)
+		err := httputil.WriteResponse(&cmdResp, resp)
+		if err != nil {
+			t.Error("unable to marshal response:", err)
+			return
+		}
+
+		w.Header().Set("Content-Type", string(resp.Header.ContentType()))
+		w.WriteHeader(200)
+		w.Write(resp.Body())
+	}
+}
+
 func TestResourceDirectoryPostHandler(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(uri.PublishResource, handleResPublishMocked(t))
@@ -202,14 +220,12 @@ func TestResourceDirectoryDeleteHandler(t *testing.T) {
 	//set counter 0, when other test run with this that it can be modified
 	counter = 0
 	deletetblResourceDirectory := []testEl{
-		{"NotExist", input{coap.DELETE, ``, []string{"xxx"}}, output{coap.BadRequest, ``, nil}},
-		{"Exist1", input{coap.DELETE, ``, []string{"di=a"}}, output{coap.Deleted, ``, nil}},
-		{"Exist2", input{coap.DELETE, ``, []string{"di=b", "ins=5"}}, output{coap.BadRequest, ``, nil}},
-		{"Exist3", input{coap.DELETE, ``, []string{"di=b", "ins=4"}}, output{coap.Deleted, ``, nil}},
+		{"NotExist", input{coap.DELETE, ``, []string{"di=b", "ins=4", "ins=5"}}, output{coap.Deleted, ``, nil}},
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(uri.PublishResource, handleResPublishMocked(t))
+	mux.HandleFunc(uri.UnpublishResource, handleResUnpublishMocked(t))
 	server := httptest.NewServer(mux)
 	defer server.Close()
 

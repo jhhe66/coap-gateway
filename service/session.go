@@ -1,8 +1,6 @@
 package service
 
 import (
-	"fmt"
-	"reflect"
 	"sync"
 
 	"github.com/go-ocf/authorization/protobuf/auth"
@@ -23,8 +21,8 @@ type Session struct {
 	client    *coap.ClientCommander
 	keepalive *Keepalive
 
-	lockobservedResources sync.Mutex
-	observedResources     map[string]map[string]observedResource
+	observedResources     map[string]map[int64]observedResource // [deviceID][instanceID]
+	observedResourcesLock sync.Mutex
 	authContext           resourcesCommands.AuthorizationContext
 	authContextLock       sync.Mutex
 }
@@ -36,18 +34,19 @@ func newSession(server *Server, client *coap.ClientCommander) *Session {
 		server:            server,
 		client:            client,
 		keepalive:         NewKeepalive(server, client),
-		observedResources: make(map[string]map[string]observedResource),
+		observedResources: make(map[string]map[int64]observedResource),
 	}
 }
 
 func (session *Session) observeResource(res resources.Resource) error {
-	session.lockobservedResources.Lock()
-	defer session.lockobservedResources.Unlock()
+	session.observedResourcesLock.Lock()
+	defer session.observedResourcesLock.Unlock()
 	if _, ok := session.observedResources[res.DeviceId]; !ok {
-		session.observedResources[res.DeviceId] = make(map[string]observedResource)
+		session.observedResources[res.DeviceId] = make(map[int64]observedResource)
 	}
-	if _, ok := session.observedResources[res.DeviceId][res.Href]; ok {
-		return fmt.Errorf("Resource ocf://%v/%v are already published", res.DeviceId, res.Href)
+	if _, ok := session.observedResources[res.DeviceId][res.InstanceId]; ok {
+		log.Warnf("Resource ocf://%v/%v are already published", res.DeviceId, res.Href)
+		return nil
 	}
 	return session.addObservedResourceLocked(res)
 }
@@ -73,68 +72,76 @@ func (session *Session) addObservedResourceLocked(res resources.Resource) error 
 			onGetResponse(&coap.Request{Client: client, Msg: resp})
 		}(session.client, res.DeviceId, res.Href)
 	}
-	session.observedResources[res.DeviceId][res.Href] = observedResource{res: res, observation: observation}
+	session.observedResources[res.DeviceId][res.InstanceId] = observedResource{res: res, observation: observation}
 	return nil
 }
 
-func (session *Session) removeObservedResourceLocked(deviceID, href string) error {
-	log.Infof("remove published resource ocf://%v/%v", deviceID, href)
-	obs := session.observedResources[deviceID][href].observation
+func (session *Session) getObservedResources(deviceID string, instanceIDs []int64, matches []resources.Resource) []resources.Resource {
+	session.observedResourcesLock.Lock()
+	defer session.observedResourcesLock.Unlock()
+
+	getAllDeviceIDMatches := len(instanceIDs) == 0
+
+	if deviceResourcesMap, ok := session.observedResources[deviceID]; ok {
+		for _, instanceID := range instanceIDs {
+			if getAllDeviceIDMatches {
+				matches = append(matches, deviceResourcesMap[instanceID].res)
+			} else if resource, ok := deviceResourcesMap[instanceID]; ok {
+				matches = append(matches, resource.res)
+			}
+		}
+	}
+
+	return matches
+}
+
+func (session *Session) unobserveResourceLocked(deviceID string, instanceID int64, deleteResource bool) error {
+	log.Infof("remove published resource ocf://%v/%v", deviceID, instanceID)
+
+	obs := session.observedResources[deviceID][instanceID].observation
 	if obs != nil {
-		log.Infof("cancel observation of ocf://%v/%v", deviceID, href)
+		log.Infof("cancel observation of ocf://%v/%v", deviceID, instanceID)
 		err := obs.Cancel()
 		if err != nil {
-			log.Errorf("Cannot cancel observation ocf//%v/%v", deviceID, href)
+			log.Errorf("Cannot cancel observation ocf//%v/%v", deviceID, instanceID)
 		}
 	}
 
-	delete(session.observedResources[deviceID], href)
-	if len(session.observedResources[deviceID]) == 0 {
-		delete(session.observedResources, deviceID)
+	if deleteResource {
+		delete(session.observedResources[deviceID], instanceID)
+		if len(session.observedResources[deviceID]) == 0 {
+			delete(session.observedResources, deviceID)
+		}
 	}
+
 	return nil
 }
 
-func (session *Session) unobserveResource(deviceID string, observedResourcesIDs map[int64]bool) error {
-	session.lockobservedResources.Lock()
-	defer session.lockobservedResources.Unlock()
+func (session *Session) unobserveResources(rscs []resources.Resource, rscsUnpublished map[string]bool) error {
+	session.observedResourcesLock.Lock()
+	defer session.observedResourcesLock.Unlock()
 
-	if hrefs, ok := session.observedResources[deviceID]; ok {
-		if len(observedResourcesIDs) == 0 {
-			for href := range hrefs {
-				session.removeObservedResourceLocked(deviceID, href)
-			}
-			return nil
+	for _, resource := range rscs {
+		if _, ok := session.observedResources[resource.DeviceId]; ok {
+			session.unobserveResourceLocked(resource.DeviceId, resource.InstanceId, rscsUnpublished[resource.Id])
+		} else {
+			log.Errorf("Cannot unobserve resource %v: resource not found", resource.Id)
 		}
-		for href, obsRes := range hrefs {
-			if _, ok := observedResourcesIDs[obsRes.res.InstanceId]; ok {
-				session.removeObservedResourceLocked(deviceID, href)
-				delete(observedResourcesIDs, obsRes.res.InstanceId)
-			}
-		}
-		if len(observedResourcesIDs) == 0 {
-			return nil
-		}
-		out := make([]int64, 0, len(observedResourcesIDs))
-		for _, val := range reflect.ValueOf(observedResourcesIDs).MapKeys() {
-			out = append(out, val.Interface().(int64))
-		}
-		return fmt.Errorf("Cannot unobserve resources with %v: resource not found", out)
 	}
-	return fmt.Errorf("Cannot unobserve resource for %v: device not found", deviceID)
 
+	return nil
 }
 
 func (session *Session) close() {
 	log.Infof("Close session %v", session.client.RemoteAddr())
 	session.keepalive.Done()
-	session.lockobservedResources.Lock()
-	defer session.lockobservedResources.Unlock()
-	for deviceID, hrefs := range session.observedResources {
-		for href := range hrefs {
-			err := session.removeObservedResourceLocked(deviceID, href)
+	session.observedResourcesLock.Lock()
+	defer session.observedResourcesLock.Unlock()
+	for deviceID, instanceIDs := range session.observedResources {
+		for instanceID := range instanceIDs {
+			err := session.unobserveResourceLocked(deviceID, instanceID, true)
 			if err != nil {
-				log.Errorf("Cannot remove observed resource ocf//%v/%v", deviceID, href)
+				log.Errorf("Cannot remove observed resource ocf//%v/%v", deviceID, instanceID)
 			}
 		}
 	}

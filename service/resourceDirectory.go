@@ -58,6 +58,10 @@ func postResourcePublishURI(server *Server) string {
 	return server.ResourceProtocol + "://" + server.ResourceHost + uri.PublishResource
 }
 
+func postResourceUnpublishURI(server *Server) string {
+	return server.ResourceProtocol + "://" + server.ResourceHost + uri.UnpublishResource
+}
+
 func resourceDirectoryPublishHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	var w wkRd
 	var cborHandle codec.CborHandle
@@ -101,9 +105,10 @@ func resourceDirectoryPublishHandler(s coap.ResponseWriter, req *coap.Request, s
 		resource.Id = resource2UUID(resource.DeviceId, resource.Href)
 
 		request := commands.PublishResourceRequest{
-			Resource:             &resource,
 			AuthorizationContext: &authContext,
-			PublishedBy:          resource.DeviceId,
+			ResourceId:           resource.Id,
+			DeviceId:             resource.DeviceId,
+			Resource:             &resource,
 			TimeToLive:           int32(w.TimeToLive),
 		}
 		var response commands.PublishResourceResponse
@@ -146,34 +151,91 @@ func resourceDirectoryPublishHandler(s coap.ResponseWriter, req *coap.Request, s
 	sendResponse(s, req.Client, coap.Changed, out.Bytes())
 }
 
+func parseUnpublishQueryString(queries []interface{}, deviceID *string, instanceIDs []int64) ([]int64, error) {
+	deviceIDFound := false
+
+	for _, query := range queries {
+		q := strings.Split(query.(string), "=")
+		if len(q) == 2 {
+			switch q[0] {
+			case "di":
+				*deviceID = q[1]
+				deviceIDFound = true
+			case "ins":
+				i, err := strconv.Atoi(q[1])
+				if err != nil {
+					log.Errorf("Cannot convert %v to number", q[1])
+				}
+				instanceIDs = append(instanceIDs, int64(i))
+			}
+		}
+	}
+
+	if !deviceIDFound {
+		return nil, fmt.Errorf("DeviceID not found")
+	}
+
+	return instanceIDs, nil
+}
+
 func resourceDirectoryUnpublishHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
+	httpRequestCtx := http.AcquireRequestCtx()
+	defer http.ReleaseRequestCtx(httpRequestCtx)
+
 	session := server.clientContainer.find(req.Client.RemoteAddr().String())
 	if session == nil {
 		log.Errorf("Cannot find session for client %v", req.Client.RemoteAddr())
 		sendResponse(s, req.Client, coap.InternalServerError, nil)
 		return
 	}
+	authContext := session.loadAuthorizationContext()
 
 	queries := req.Msg.Options(coap.URIQuery)
 	var deviceID string
-	inss := make(map[int64]bool)
-	for _, query := range queries {
-		q := strings.Split(query.(string), "=")
-		if len(q) == 2 {
-			switch q[0] {
-			case "di":
-				deviceID = q[1]
-			case "ins":
-				i, err := strconv.Atoi(q[1])
-				if err != nil {
-					log.Errorf("Cannot convert %v to number", q[1])
-				}
-				inss[int64(i)] = true
-			}
+	inss := make([]int64, 0, 32)
+	inss, err := parseUnpublishQueryString(queries, &deviceID, inss)
+	if err != nil {
+		log.Errorf("Incorrect Unpublish query string - %v", err)
+		sendResponse(s, req.Client, coap.BadRequest, nil)
+		return
+	}
+
+	rscs := make([]resources.Resource, 0, 32)
+	rscs = session.getObservedResources(deviceID, inss, rscs)
+	rscsUnpublished := make(map[string]bool, 32)
+
+	for _, resource := range rscs {
+		if resource.DeviceId == "" {
+			log.Error("cannot unpublish a resource without device ID for client %v", req.Client.RemoteAddr())
+			continue
+		}
+
+		if resource.Href == "" {
+			log.Error("cannot unpublish a resource without a href for client %v", req.Client.RemoteAddr())
+			continue
+		}
+
+		request := commands.UnpublishResourceRequest{
+			AuthorizationContext: &authContext,
+			ResourceId:           resource.Id,
+			DeviceId:             deviceID,
+		}
+		var response commands.UnpublishResourceResponse
+		httpCode, err := httpRequestCtx.PostProto(server.httpClient, postResourceUnpublishURI(server), &request, &response)
+		if err != nil {
+			log.Errorf("cannot unpublish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
+		}
+
+		if httpCode == fasthttp.StatusOK {
+			log.Info("resource %v successfully unpublished for device ID %v", resource.Id, resource.DeviceId)
+			rscsUnpublished[resource.Id] = true
+		} else {
+			log.Error("cannot unpublish resource %v for device %v", resource.Id, resource.DeviceId)
+			rscsUnpublished[resource.Id] = false
 		}
 	}
 
-	err := session.unobserveResource(deviceID, inss)
+	err = session.unobserveResources(rscs, rscsUnpublished)
 	if err != nil {
 		log.Errorf("%v", err)
 		sendResponse(s, req.Client, coap.BadRequest, nil)
