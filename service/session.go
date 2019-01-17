@@ -83,11 +83,15 @@ func (session *Session) getObservedResources(deviceID string, instanceIDs []int6
 	getAllDeviceIDMatches := len(instanceIDs) == 0
 
 	if deviceResourcesMap, ok := session.observedResources[deviceID]; ok {
-		for _, instanceID := range instanceIDs {
-			if getAllDeviceIDMatches {
-				matches = append(matches, deviceResourcesMap[instanceID].res)
-			} else if resource, ok := deviceResourcesMap[instanceID]; ok {
-				matches = append(matches, resource.res)
+		if getAllDeviceIDMatches {
+			for _, value := range deviceResourcesMap {
+				matches = append(matches, value.res)
+			}
+		} else {
+			for _, instanceID := range instanceIDs {
+				if resource, ok := deviceResourcesMap[instanceID]; ok {
+					matches = append(matches, resource.res)
+				}
 			}
 		}
 	}
