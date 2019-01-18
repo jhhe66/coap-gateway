@@ -77,6 +77,8 @@ var tblResourceDirectory = []testEl{
 	{"BadRequest2", input{coap.POST, `{ "di":"a", "links":[ "abc" ]}`, nil}, output{coap.BadRequest, ``, nil}},
 	{"BadRequest3", input{coap.POST, `{ "di":"a", "links":[ {} ]}`, nil}, output{coap.BadRequest, ``, nil}},
 	{"BadRequest4", input{coap.POST, `{ "di":"a", "links":[ { "href":"" } ]}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest5", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"" } ], "ttl":12345}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest5", input{coap.POST, `{ "di":"a", "links":[ { "href":"" } ], "ttl":12345}`, nil}, output{coap.BadRequest, ``, nil}},
 	{"Changed0", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/a" } ], "ttl":12345}`, nil},
 		output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/a","id":"b2c5f775-9a6f-5d5b-a82a-eaa1d23f0629","if":null,"ins":0,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},
 	{"Changed1", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/b" } ], "ttl":12345}`, nil}, output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/b","id":"91410e86-9161-5317-9576-be5c7660f085","if":null,"ins":1,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},
@@ -162,6 +164,24 @@ func handleResPublishMocked(t *testing.T) func(http.ResponseWriter, *http.Reques
 	}
 }
 
+func handleResUnpublishMocked(t *testing.T) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cmdResp := commands.UnpublishResourceResponse{AuditContext: &resources.AuditContext{UserId: "UserID1", DeviceId: "DeviceID1", CorrelationId: "CorrelationID1"}}
+
+		resp := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseResponse(resp)
+		err := httputil.WriteResponse(&cmdResp, resp)
+		if err != nil {
+			t.Error("unable to marshal response:", err)
+			return
+		}
+
+		w.Header().Set("Content-Type", string(resp.Header.ContentType()))
+		w.WriteHeader(200)
+		w.Write(resp.Body())
+	}
+}
+
 func TestResourceDirectoryPostHandler(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(uri.PublishResource, handleResPublishMocked(t))
@@ -202,14 +222,16 @@ func TestResourceDirectoryDeleteHandler(t *testing.T) {
 	//set counter 0, when other test run with this that it can be modified
 	counter = 0
 	deletetblResourceDirectory := []testEl{
-		{"NotExist", input{coap.DELETE, ``, []string{"xxx"}}, output{coap.BadRequest, ``, nil}},
-		{"Exist1", input{coap.DELETE, ``, []string{"di=a"}}, output{coap.Deleted, ``, nil}},
-		{"Exist2", input{coap.DELETE, ``, []string{"di=b", "ins=5"}}, output{coap.BadRequest, ``, nil}},
-		{"Exist3", input{coap.DELETE, ``, []string{"di=b", "ins=4"}}, output{coap.Deleted, ``, nil}},
+		{"NotExist1", input{coap.DELETE, ``, []string{"di=c", "ins=5"}}, output{coap.BadRequest, ``, nil}},   // Non-existent device ID.
+		{"NotExist2", input{coap.DELETE, ``, []string{"ins=4"}}, output{coap.BadRequest, ``, nil}},           // Device ID empty.
+		{"NotExist3", input{coap.DELETE, ``, []string{"di=a", "ins=999"}}, output{coap.BadRequest, ``, nil}}, // Instance ID non-existent.
+		{"Exist1", input{coap.DELETE, ``, []string{"di=a"}}, output{coap.Deleted, ``, nil}},                  // If instanceIDs empty, all instances for a given device ID should be unpublished.
+		{"Exist2", input{coap.DELETE, ``, []string{"di=b", "ins=4", "ins=5"}}, output{coap.Deleted, ``, nil}},
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(uri.PublishResource, handleResPublishMocked(t))
+	mux.HandleFunc(uri.UnpublishResource, handleResUnpublishMocked(t))
 	server := httptest.NewServer(mux)
 	defer server.Close()
 

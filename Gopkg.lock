@@ -11,22 +11,22 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b1bb14fa735e16552a916bd5cd56583a734791c5d765045e25285f1388eb15c4"
+  digest = "1:424e3c24f32eb77a65c1bb71c14415e38ce7d935ed5c7a7a60c4bf0a46bd6aa6"
   name = "github.com/go-ocf/authorization"
   packages = [
     "protobuf/auth",
     "uri",
   ]
   pruneopts = "UT"
-  revision = "d6f36b9803f4124eac53ce2fcacfeff011ba918c"
+  revision = "8b93b2089b7cd28ec3814ed6ff9c0d8a844ccade"
 
 [[projects]]
   branch = "master"
-  digest = "1:d73a892ddf5fd46e2f9c7dd29613bf4135d29d83929ab3ed7480b6c447c1b76b"
+  digest = "1:e6c7c984cd9e5a4285bcafa07aed529d3cba16ba6ba679c9564eb7abe53ae286"
   name = "github.com/go-ocf/go-coap"
   packages = ["."]
   pruneopts = "UT"
-  revision = "8c46bd2bfb6b7030ed3b182192eeca04c54c7a66"
+  revision = "7c1a7943abed6fc948d8dd09aadee3d8864efcb5"
 
 [[projects]]
   branch = "master"
@@ -41,7 +41,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9dcc90197a808e321bd24886cb360614d7be701d5426f90745599a6bbc9d0ace"
+  digest = "1:096e72e935599ad38a39f1b4c3899879bd789da0c193805e280fda93c90fde31"
   name = "github.com/go-ocf/resources"
   packages = [
     "protobuf/resources",
@@ -49,7 +49,7 @@
     "uri",
   ]
   pruneopts = "UT"
-  revision = "443438182a5cfbdcab9a8c70491a1867f2164a16"
+  revision = "27f8518cf831081b3ddec9f4baf20326067e3ae8"
 
 [[projects]]
   digest = "1:a9c85389dbd301c97a3499fe15a2b65b505b5f0cb0f1120dea59f1f3d6b11d96"
@@ -117,7 +117,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4ecfa0e43fcde26b78bd50886f093851d858f27e6525e6f7577a066069df83b8"
+  digest = "1:615aad502fd30bc08318efefb0557f3b13d687c42a0a8bbdf738638618b340fb"
   name = "github.com/valyala/fasthttp"
   packages = [
     ".",
@@ -125,7 +125,7 @@
     "stackless",
   ]
   pruneopts = "UT"
-  revision = "62dcd6fdcedcced7ed39ae32df8a96dc1e20e644"
+  revision = "c88be72d77e6deede478719f77f7b83df75531e8"
 
 [[projects]]
   digest = "1:3c1a69cdae3501bf75e76d0d86dc6f2b0a7421bc205c0cb7b96b19eed464a34d"
@@ -160,7 +160,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:017f082ca972d27a7f9f336cb0ad08b01e7024b0da4bc362d127deed2574b83d"
+  digest = "1:19beed19e4246df7aff387a2bcd4519a386e3fe9637690031c4d4b0cf75f7215"
   name = "golang.org/x/net"
   packages = [
     "bpf",
@@ -170,7 +170,7 @@
     "ipv6",
   ]
   pruneopts = "UT"
-  revision = "e147a9138326bc0e9d4e179541ffd8af41cff8a9"
+  revision = "915654e7eabcea33ae277abbecf52f0d8b7a9fdc"
 
 [solve-meta]
   analyzer-name = "dep"
