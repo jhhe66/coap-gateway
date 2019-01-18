@@ -62,6 +62,43 @@ func postResourceUnpublishURI(server *Server) string {
 	return server.ResourceProtocol + "://" + server.ResourceHost + uri.UnpublishResource
 }
 
+func publishResource(resource resources.Resource, server *Server, req *coap.Request, httpRequestCtx *http.RequestCtx, authContext commands.AuthorizationContext, ttl int32, links []resources.Resource) []resources.Resource {
+	if resource.DeviceId == "" {
+		log.Error("cannot publish a resource without device ID for client %v", req.Client.RemoteAddr())
+		return links
+	}
+
+	if resource.Href == "" {
+		log.Error("cannot publish a resource without a href for client %v", req.Client.RemoteAddr())
+		return links
+	}
+
+	resource.Id = resource2UUID(resource.DeviceId, resource.Href)
+
+	request := commands.PublishResourceRequest{
+		AuthorizationContext: &authContext,
+		ResourceId:           resource.Id,
+		DeviceId:             resource.DeviceId,
+		Resource:             &resource,
+		TimeToLive:           ttl,
+	}
+	var response commands.PublishResourceResponse
+	httpCode, err := httpRequestCtx.PostProto(server.httpClient, postResourcePublishURI(server), &request, &response)
+	if err != nil {
+		log.Errorf("cannot publish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
+	}
+
+	if httpCode == fasthttp.StatusOK {
+		resource.InstanceId = response.InstanceId
+		links = append(links, resource)
+		log.Info("resource successfull published for resource %v, device ID", resource.Id, resource.DeviceId)
+	} else {
+		log.Error("cannot publish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
+	}
+
+	return links
+}
+
 func resourceDirectoryPublishHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	var w wkRd
 	var cborHandle codec.CborHandle
@@ -91,39 +128,7 @@ func resourceDirectoryPublishHandler(s coap.ResponseWriter, req *coap.Request, s
 
 	links := make([]resources.Resource, 0, len(w.Links))
 	for _, resource := range w.Links {
-
-		if resource.DeviceId == "" {
-			log.Error("cannot publish a resource without device ID for client %v", req.Client.RemoteAddr())
-			continue
-		}
-
-		if resource.Href == "" {
-			log.Error("cannot publish a resource without a href for client %v", req.Client.RemoteAddr())
-			continue
-		}
-
-		resource.Id = resource2UUID(resource.DeviceId, resource.Href)
-
-		request := commands.PublishResourceRequest{
-			AuthorizationContext: &authContext,
-			ResourceId:           resource.Id,
-			DeviceId:             resource.DeviceId,
-			Resource:             &resource,
-			TimeToLive:           int32(w.TimeToLive),
-		}
-		var response commands.PublishResourceResponse
-		httpCode, err := httpRequestCtx.PostProto(server.httpClient, postResourcePublishURI(server), &request, &response)
-		if err != nil {
-			log.Errorf("cannot publish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
-		}
-
-		if httpCode == fasthttp.StatusOK {
-			resource.InstanceId = response.InstanceId
-			links = append(links, resource)
-			log.Info("resource successfull published for resource %v, device ID", resource.Id, resource.DeviceId)
-		} else {
-			log.Error("cannot publish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
-		}
+		links = publishResource(resource, server, req, httpRequestCtx, authContext, int32(w.TimeToLive), links)
 	}
 
 	if len(links) == 0 {
@@ -178,6 +183,29 @@ func parseUnpublishQueryString(queries []interface{}, deviceID *string, instance
 	return instanceIDs, nil
 }
 
+func unpublishResource(resource resources.Resource, server *Server, httpRequestCtx *http.RequestCtx, authContext commands.AuthorizationContext, deviceID string, rscsUnpublished map[string]bool) map[string]bool {
+	request := commands.UnpublishResourceRequest{
+		AuthorizationContext: &authContext,
+		ResourceId:           resource.Id,
+		DeviceId:             deviceID,
+	}
+	var response commands.UnpublishResourceResponse
+	httpCode, err := httpRequestCtx.PostProto(server.httpClient, postResourceUnpublishURI(server), &request, &response)
+	if err != nil {
+		log.Errorf("cannot unpublish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
+	}
+
+	if httpCode == fasthttp.StatusOK {
+		log.Info("resource %v successfully unpublished for device ID %v", resource.Id, resource.DeviceId)
+		rscsUnpublished[resource.Id] = true
+	} else {
+		log.Error("cannot unpublish resource %v for device %v", resource.Id, resource.DeviceId)
+		rscsUnpublished[resource.Id] = false
+	}
+
+	return rscsUnpublished
+}
+
 func resourceDirectoryUnpublishHandler(s coap.ResponseWriter, req *coap.Request, server *Server) {
 	httpRequestCtx := http.AcquireRequestCtx()
 	defer http.ReleaseRequestCtx(httpRequestCtx)
@@ -211,32 +239,10 @@ func resourceDirectoryUnpublishHandler(s coap.ResponseWriter, req *coap.Request,
 	}
 
 	for _, resource := range rscs {
-		request := commands.UnpublishResourceRequest{
-			AuthorizationContext: &authContext,
-			ResourceId:           resource.Id,
-			DeviceId:             deviceID,
-		}
-		var response commands.UnpublishResourceResponse
-		httpCode, err := httpRequestCtx.PostProto(server.httpClient, postResourceUnpublishURI(server), &request, &response)
-		if err != nil {
-			log.Errorf("cannot unpublish resource ID:%v for device ID:%v", resource.Id, resource.DeviceId)
-		}
-
-		if httpCode == fasthttp.StatusOK {
-			log.Info("resource %v successfully unpublished for device ID %v", resource.Id, resource.DeviceId)
-			rscsUnpublished[resource.Id] = true
-		} else {
-			log.Error("cannot unpublish resource %v for device %v", resource.Id, resource.DeviceId)
-			rscsUnpublished[resource.Id] = false
-		}
+		rscsUnpublished = unpublishResource(resource, server, httpRequestCtx, authContext, deviceID, rscsUnpublished)
 	}
 
-	err = session.unobserveResources(rscs, rscsUnpublished)
-	if err != nil {
-		log.Errorf("%v", err)
-		sendResponse(s, req.Client, coap.BadRequest, nil)
-		return
-	}
+	session.unobserveResources(rscs, rscsUnpublished)
 
 	sendResponse(s, req.Client, coap.Deleted, nil)
 }

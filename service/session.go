@@ -99,7 +99,7 @@ func (session *Session) getObservedResources(deviceID string, instanceIDs []int6
 	return matches
 }
 
-func (session *Session) unobserveResourceLocked(deviceID string, instanceID int64, deleteResource bool) error {
+func (session *Session) unobserveResourceLocked(deviceID string, instanceID int64, deleteResource bool) {
 	log.Infof("remove published resource ocf://%v/%v", deviceID, instanceID)
 
 	obs := session.observedResources[deviceID][instanceID].observation
@@ -117,11 +117,9 @@ func (session *Session) unobserveResourceLocked(deviceID string, instanceID int6
 			delete(session.observedResources, deviceID)
 		}
 	}
-
-	return nil
 }
 
-func (session *Session) unobserveResources(rscs []resources.Resource, rscsUnpublished map[string]bool) error {
+func (session *Session) unobserveResources(rscs []resources.Resource, rscsUnpublished map[string]bool) {
 	session.observedResourcesLock.Lock()
 	defer session.observedResourcesLock.Unlock()
 
@@ -132,8 +130,6 @@ func (session *Session) unobserveResources(rscs []resources.Resource, rscsUnpubl
 			log.Errorf("Cannot unobserve resource %v: resource not found", resource.Id)
 		}
 	}
-
-	return nil
 }
 
 func (session *Session) close() {
@@ -143,10 +139,7 @@ func (session *Session) close() {
 	defer session.observedResourcesLock.Unlock()
 	for deviceID, instanceIDs := range session.observedResources {
 		for instanceID := range instanceIDs {
-			err := session.unobserveResourceLocked(deviceID, instanceID, true)
-			if err != nil {
-				log.Errorf("Cannot remove observed resource ocf//%v/%v", deviceID, instanceID)
-			}
+			session.unobserveResourceLocked(deviceID, instanceID, true)
 		}
 	}
 }
