@@ -77,6 +77,8 @@ var tblResourceDirectory = []testEl{
 	{"BadRequest2", input{coap.POST, `{ "di":"a", "links":[ "abc" ]}`, nil}, output{coap.BadRequest, ``, nil}},
 	{"BadRequest3", input{coap.POST, `{ "di":"a", "links":[ {} ]}`, nil}, output{coap.BadRequest, ``, nil}},
 	{"BadRequest4", input{coap.POST, `{ "di":"a", "links":[ { "href":"" } ]}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest5", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"" } ], "ttl":12345}`, nil}, output{coap.BadRequest, ``, nil}},
+	{"BadRequest5", input{coap.POST, `{ "di":"a", "links":[ { "href":"" } ], "ttl":12345}`, nil}, output{coap.BadRequest, ``, nil}},
 	{"Changed0", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/a" } ], "ttl":12345}`, nil},
 		output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/a","id":"b2c5f775-9a6f-5d5b-a82a-eaa1d23f0629","if":null,"ins":0,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},
 	{"Changed1", input{coap.POST, `{ "di":"a", "links":[ { "di":"a", "href":"/b" } ], "ttl":12345}`, nil}, output{coap.Changed, `{"di":"a","links":[{"di":"a","href":"/b","id":"91410e86-9161-5317-9576-be5c7660f085","if":null,"ins":1,"p":null,"rt":null,"type":null}],"ttl":12345}`, nil}},

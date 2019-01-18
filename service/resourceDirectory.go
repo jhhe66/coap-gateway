@@ -205,22 +205,12 @@ func resourceDirectoryUnpublishHandler(s coap.ResponseWriter, req *coap.Request,
 
 	rscs = session.getObservedResources(deviceID, inss, rscs)
 	if len(rscs) == 0 {
-		log.Errorf("no matching resources found for the DELETE request - with device ID and instance IDs %v, ", queries)
+		log.Errorf("no matching resources found for the DELETE request parameters - with device ID and instance IDs %v, ", queries)
 		sendResponse(s, req.Client, coap.BadRequest, nil)
 		return
 	}
 
 	for _, resource := range rscs {
-		if resource.DeviceId == "" {
-			log.Error("cannot unpublish a resource without device ID for client %v", req.Client.RemoteAddr())
-			continue
-		}
-
-		if resource.Href == "" {
-			log.Error("cannot unpublish a resource without a href for client %v", req.Client.RemoteAddr())
-			continue
-		}
-
 		request := commands.UnpublishResourceRequest{
 			AuthorizationContext: &authContext,
 			ResourceId:           resource.Id,
